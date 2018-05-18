@@ -1,0 +1,36 @@
+---
+output: 
+  html_document:
+    self_contained: TRUE
+    code_folding: hide
+    toc: TRUE
+    toc_float: TRUE
+css: www/styles.css
+editor_options: 
+  chunk_output_type: console
+---
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato" />
+
+<div id="header">
+![](images/urban-institute-logo.png)
+</div>
+
+```{r rmarkdown-setup}
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+```
+
+```{r setup, echo=FALSE}
+options(scipen = 999)
+
+library(tidyverse)
+library(urbnthemes)
+
+set_urban_defaults()
+```
+
+
+# Title
+#### Author
+#### `r format(Sys.time(), '%B %d, %Y')`
