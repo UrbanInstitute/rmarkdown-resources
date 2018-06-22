@@ -1,0 +1,172 @@
+---
+author: "Aaron Williams"
+date: "`r format(Sys.time(), '%B %d, %Y')`"
+output: html_document
+css: ../www/styles.css
+editor_options: 
+  chunk_output_type: console
+params:
+  state: "Alabama"
+---
+
+<link rel="stylesheet" href="//fonts.googleapis.com/css?family=Lato" />
+
+```{r rmarkdown-setup, echo=FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+knitr::opts_chunk$set(message = FALSE)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+```{r r-setup, echo=FALSE}
+library(tidyverse)
+library(knitr)
+library(fivethirtyeight)
+library(grid)
+library(gridExtra)
+library(formattable)
+library(kableExtra)
+
+library(urbnthemes)
+
+set_urban_defaults(style = "print")
+```
+
+# Driver Quality in `r params$state`
+
+Driving is dangerous and results in tens of thousands of deaths, hundreds of thousands of injuries, and exorbitant property damage each year in the United States. This factsheet presents information about driving from [Dear Mona, Which State Has The Worst Drivers?](https://fivethirtyeight.com/features/which-state-has-the-worst-drivers/) by FiveThirtyEight about `r params$state`.
+
+Drivers who are involved in fatal collisions engage in many dangerous behaviors. Some fangerous behaviors are measured by the National Highway Traffic Safety Administration. Here are some those behaviors in `r params$state`.
+
+```{r chart}
+
+titler <- function(title) {
+  textGrob(title, 
+           x = unit(0, "npc"), 
+           hjust = 0, 
+           vjust = 0,
+           gp = gpar(fontsize = 12, fontfamily = "Lato"))
+
+}
+
+subtitler <- function(subtitle) {
+  textGrob(subtitle, 
+           x = unit(0, "npc"), 
+           hjust = 0, 
+           vjust = 0,
+           gp = gpar(fontsize = 9.5, fontfamily = "Lato"))
+}
+  
+sourcer <- function(source) {
+  grobTree(
+    textGrob("Source: ", 
+             name = "source1",
+             x = unit(0, "npc"), 
+             hjust = 0, 
+             vjust = 0,
+             gp = gpar(fontsize = 8, fontfamily = "Lato", fontface = "bold")),
+    textGrob(source, 
+             x = unit(0, "npc") + grobWidth("source1"), 
+             hjust = 0, 
+             vjust = 0,
+             gp = gpar(fontsize = 8, fontfamily = "Lato"))
+  )
+}
+
+noter <- function(endnote) {
+  grobTree(
+    textGrob("Notes: ", 
+             name = "note1",
+             x = unit(0, "npc"), 
+             hjust = 0, 
+             vjust = 0,
+             gp = gpar(fontsize = 8, fontfamily = "Lato", fontface = "bold")),
+    textGrob(endnote, 
+             x = unit(0, "npc") + grobWidth("note1"), 
+             hjust = 0, 
+             vjust = 0,
+             gp = gpar(fontsize = 8, fontfamily = "Lato"))
+  )
+}
+
+caption <- grobTree(
+  gp = gpar(fontsize = 7, hjust = 1), 
+  textGrob(label = "I N S T I T U T E", 
+           name = "caption1",
+           x = unit(1, "npc"),  
+           y = unit(0, "npc"),
+           hjust = 1, 
+           vjust = 0),
+  textGrob(label = "U R B A N  ", 
+           x = unit(1, "npc") - grobWidth("caption1") - unit(0.01, "lines"),         
+           y = unit(0, "npc"), 
+           hjust = 1, 
+           vjust = 0, 
+           gp = gpar(col = "#1696d2"))
+)
+
+plotr <- function(plot, title = NULL, subtitle = NULL, 
+                  source = "library(fivethirtyeight)",
+                  endnote = "") {
+  grid.arrange(titler(title), 
+              subtitler(subtitle), 
+              plot, 
+              caption, 
+              sourcer(source), 
+              noter(endnote),
+              heights = c(1.5, 1, 25, 1, 1, 1)) 
+}
+
+plot <- bad_drivers %>%
+  select(state, perc_speeding, perc_alcohol, perc_not_distracted) %>%
+  mutate(
+    perc_speeding = perc_speeding / 100, 
+    perc_alcohol = perc_alcohol / 100,
+    perc_distracted = 1 - perc_not_distracted / 100,
+    ) %>%
+  select(-perc_not_distracted) %>%
+  gather(key = "key", value = "value", -state) %>%
+  filter(state == params$state) %>%
+  ggplot(aes(key, value)) +
+  geom_bar(stat = "identity") +
+  scale_x_discrete(labels = c("% Alcohol", "% Distracted", "% Speeding")) +
+  scale_y_continuous(expand = c(0, 0), limits = c(0, 1), breaks = c(0.2, 0.4, 0.6, 0.8, 1), labels = scales::percent) +
+  labs(y = NULL)
+
+plotr(plot = plot,
+      title = paste0("Driver Behaviors in ", params$state),
+      subtitle = "Behaviors of drivers involved in fatal collisions",
+      source = "National Highway Traffic Safety Administration 2009 & 2012",
+      endnote = "All data accessed with library(fivethirtyeight)")
+```
+
+The above plots looks at just `r params$state`. The following table compares `r params$state` with the most dangerous states out of all fifty states and Washington, D.C. 
+
+#### States with the Most drivers Involved in Fatal Collisions per Billion Miles
+
+```{r}
+worst_drivers <- bad_drivers %>%
+  mutate(perc_distracted = 100 - perc_not_distracted) %>%
+  arrange(desc(num_drivers)) %>%
+  mutate(Rank = row_number())
+
+state_row <- worst_drivers %>%
+  filter(state == params$state) %>%
+  pull(Rank)
+
+worst_drivers %>%  
+  filter(Rank %in% 1:5 | state == params$state) %>%
+  mutate_at(.vars = vars(perc_alcohol, perc_speeding, perc_distracted), .funs = ~scales::percent(. / 100)) %>%  
+  select(Rank, State = state, `Drivers` = num_drivers, `% Alcohol` = perc_alcohol, `% Speeding` = perc_speeding, `% Distracted` = perc_distracted) %>%
+  kable(format = "html", align = "r") %>%
+  kable_styling(full_width = FALSE, position = "left") %>%
+  row_spec(min(state_row, 6), color = "#ffffff", background = "#1696d2", bold = TRUE)
+```
+
+*Data from National Highway Traffic Safety Administration 2012, National Highway Traffic Safety Administration 2009 & 2012, National Association of Insurance Commissioners 2010 & 2011. All data accessed through library(fivethirtyeight).*
+
+
+
+
+
+
+
